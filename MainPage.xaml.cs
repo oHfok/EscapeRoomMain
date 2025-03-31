@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using System.Timers;
 using Microsoft.Maui.Controls;
 
-
 namespace Dawidek
 {
     public partial class MainPage : ContentPage
@@ -14,18 +13,24 @@ namespace Dawidek
         private readonly System.Timers.Timer gameTimer;
         private bool gameEnded;
         private int currentQuestion;
-        private readonly string[] questions = { "Ile to 6 + 3?", "Jakiej litery brakuje: A, B, _, D?", "Znajdź hasło", "Ile jest planet w układzie słonecznym?", "memory_game" };
-        private readonly string[] answers = { "9", "c", "", "8", "" };
+        private readonly string[] questions = { "Ile to 6 + 3?", "Jakiej litery brakuje: A, B, _, D?", "Znajdź hasło", "Ile jest planet w układzie słonecznym?", "traffic_light", "memory_game" };
+        private readonly string[] answers = { "9", "c", "", "8", "", "" };
         private DateTime startTime;
         private string password = string.Empty;
         private double initialBarWidth;
 
+        // Memory game variables
         private List<Button> memoryButtons = new();
         private List<string> emojis = new();
         private Button? firstFlippedTile;
         private Button? secondFlippedTile;
         private bool isProcessing = false;
         private int matchesFound = 0;
+
+        // Traffic light puzzle variables
+        private Frame? draggedLight = null;
+        private Dictionary<string, Frame> lightSlots = new();
+        private Dictionary<Frame, string> slotContents = new();
 
         public MainPage()
         {
@@ -34,15 +39,22 @@ namespace Dawidek
             ResetUI();
             gameTimer = new System.Timers.Timer(1000);
             gameTimer.Elapsed += OnTimerElapsed;
-            // Avoid DeviceDisplay in constructor which can cause issues
-            TimerBar.WidthRequest = 300; // Use a fixed default width initially
-            System.Diagnostics.Debug.WriteLine("MainPage Constructor Called");
+            TimerBar.WidthRequest = 300;
+
+            // Initialize the traffic light slots
+            lightSlots = new Dictionary<string, Frame>
+            {
+                { "Top", TopLightSlot },
+                { "Middle", MiddleLightSlot },
+                { "Bottom", BottomLightSlot }
+            };
+
+            slotContents = new Dictionary<Frame, string>();
         }
 
         protected override void OnSizeAllocated(double width, double height)
         {
             base.OnSizeAllocated(width, height);
-            // Update initialBarWidth based on actual page width
             initialBarWidth = width * 0.8;
         }
 
@@ -54,47 +66,62 @@ namespace Dawidek
             TimerBorder.IsVisible = false;
             TimerLabel.IsVisible = false;
             TimerBar.IsVisible = false;
-
             WarningEmojiButton.IsVisible = false;
             IncorrectAnswerLabel.IsVisible = false;
             FindPasswordLabel.IsVisible = false;
             PuzzleAnswer.IsVisible = false;
             MemoryGridLayout.IsVisible = false;
-
-            // Make sure start button is visible
+            TrafficLightGrid.IsVisible = false;
             StartButton.IsVisible = true;
 
-            System.Diagnostics.Debug.WriteLine("ResetUI Called");
+            // Reset traffic light puzzle
+            if (lightSlots != null && lightSlots.Count > 0)
+            {
+                foreach (var slot in lightSlots.Values)
+                {
+                    slot.BackgroundColor = Colors.LightGray;
+                }
+            }
+
+            if (slotContents != null)
+            {
+                slotContents.Clear();
+            }
+
+            // Make the colored lights visible again
+            if (RedLight != null) RedLight.IsVisible = true;
+            if (YellowLight != null) YellowLight.IsVisible = true;
+            if (GreenLight != null) GreenLight.IsVisible = true;
         }
 
         private void StartGame(object sender, EventArgs e)
         {
-            
-            StartButton.IsVisible = false;
+            // Explicitly hide success and game over layouts first
+            SuccessLayout.IsVisible = false;
             GameOverLayout.IsVisible = false;
+
+            StartButton.IsVisible = false;
             startTime = DateTime.Now;
             timeLeft = 60;
             currentQuestion = 0;
             gameEnded = false;
 
-            // Use platform independent way to get screen width
-            initialBarWidth = Width * 0.8; // Use page width instead of DeviceDisplay
+            initialBarWidth = Width * 0.8;
             TimerBar.WidthRequest = initialBarWidth;
             TimerBar.BackgroundColor = Colors.Green;
 
             TimerBorder.IsVisible = true;
             TimerBar.IsVisible = true;
             TimerLabel.IsVisible = true;
+            TimerLabel.TextColor = Colors.White; // Reset text color
             TimerBar.Margin = new Thickness(0, 50, 0, 0);
 
             ShowPuzzle();
             gameTimer.Start();
-            System.Diagnostics.Debug.WriteLine("StartGame Called");
         }
 
         private void UpdateTimerBar()
         {
-            // Calculate the proportion of time remaining and apply to width
             double proportion = (double)timeLeft / 60.0;
             double remainingWidth = proportion * initialBarWidth;
 
@@ -102,7 +129,6 @@ namespace Dawidek
             {
                 TimerBar.WidthRequest = remainingWidth;
 
-                // Smooth color transition based on time remaining
                 if (timeLeft <= 10)
                     TimerBar.BackgroundColor = Colors.Red;
                 else if (timeLeft <= 30)
@@ -150,18 +176,26 @@ namespace Dawidek
                     return;
                 }
 
+                // Hide all puzzle layouts first
+                PuzzleLayout.IsVisible = false;
+                MemoryGridLayout.IsVisible = false;
+                TrafficLightGrid.IsVisible = false;
+
                 if (questions[currentQuestion] == "memory_game")
                 {
-                    PuzzleLayout.IsVisible = false;
                     MemoryGridLayout.IsVisible = true;
                     WarningEmojiButton.IsVisible = false;
                     FindPasswordLabel.IsVisible = false;
                     StartMemoryGame();
                 }
+                else if (questions[currentQuestion] == "traffic_light")
+                {
+                    TrafficLightGrid.IsVisible = true;
+                    InitializeTrafficLightPuzzle();
+                }
                 else
                 {
                     PuzzleLayout.IsVisible = true;
-                    MemoryGridLayout.IsVisible = false;
                     PuzzleQuestion.Text = questions[currentQuestion];
                     PuzzleAnswer.Text = string.Empty;
                     IncorrectAnswerLabel.IsVisible = false;
@@ -170,7 +204,6 @@ namespace Dawidek
                     PuzzleAnswer.IsVisible = true;
                     if (currentQuestion == 2) GenerateEmojiPassword();
                 }
-                System.Diagnostics.Debug.WriteLine($"ShowPuzzle Called. currentQuestion = {currentQuestion}");
             });
         }
 
@@ -185,7 +218,7 @@ namespace Dawidek
 
         private void SubmitAnswer(object sender, EventArgs e)
         {
-            if (currentQuestion >= questions.Length || questions[currentQuestion] == "memory_game")
+            if (currentQuestion >= questions.Length || questions[currentQuestion] == "memory_game" || questions[currentQuestion] == "traffic_light")
             {
                 return;
             }
@@ -200,15 +233,11 @@ namespace Dawidek
                 if (isCorrect)
                 {
                     PuzzleLayout.IsVisible = false;
-                    // Save progress safely with try/catch
                     try
                     {
                         Preferences.Set(questions[currentQuestion], true);
                     }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Error saving preference: {ex.Message}");
-                    }
+                    catch { }
 
                     currentQuestion++;
                     if (currentQuestion >= questions.Length)
@@ -218,8 +247,6 @@ namespace Dawidek
                 }
                 else
                     IncorrectAnswerLabel.IsVisible = true;
-
-                System.Diagnostics.Debug.WriteLine($"SubmitAnswer Called. currentQuestion = {currentQuestion}, isCorrect = {isCorrect}");
             });
         }
 
@@ -229,11 +256,7 @@ namespace Dawidek
             gameEnded = true;
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                if (isTimeout)
-                    GameOverLayout.IsVisible = true;
-                else
-                    SuccessLayout.IsVisible = true;
-
+                // Hide all game elements first
                 WarningEmojiButton.IsVisible = false;
                 FindPasswordLabel.IsVisible = false;
                 PuzzleAnswer.IsVisible = false;
@@ -242,14 +265,28 @@ namespace Dawidek
                 TimerBar.IsVisible = false;
                 PuzzleLayout.IsVisible = false;
                 MemoryGridLayout.IsVisible = false;
+                TrafficLightGrid.IsVisible = false;
 
+                // Calculate time taken
                 double secondsTaken = Math.Round((DateTime.Now - startTime).TotalSeconds, 2);
-                TimeTakenLabel.Text = $"Time Taken: {secondsTaken} seconds";
-                TimeTakenSuccessLabel.Text = $"Time Taken: {secondsTaken} seconds";
 
-                System.Diagnostics.Debug.WriteLine($"EndGame Called. isTimeout = {isTimeout}");
+                // Show the appropriate end screen
+                if (isTimeout)
+                {
+                    TimeTakenLabel.Text = $"Time Taken: {secondsTaken} seconds";
+                    GameOverLayout.IsVisible = true;
+                    SuccessLayout.IsVisible = false;
+                }
+                else
+                {
+                    TimeTakenSuccessLabel.Text = $"Time Taken: {secondsTaken} seconds";
+                    SuccessLayout.IsVisible = true;
+                    GameOverLayout.IsVisible = false;
+                }
             });
         }
+
+        #region Memory Game
 
         private void StartMemoryGame()
         {
@@ -258,19 +295,15 @@ namespace Dawidek
             secondFlippedTile = null;
             isProcessing = false;
 
-            // Initialize emoji list inside the method to avoid potential issues
             emojis = new List<string> {
                 "😊", "😊", "😂", "😂", "😍", "😍", "😎", "😎",
-                "🤔", "🤔", "🔥", "🔥", "🎉", "🎉", "🌟", "🌟" }; // 16 emojis for 4x4 grid
+                "🤔", "🤔", "🔥", "🔥", "🎉", "🎉", "🌟", "🌟" };
 
-            // Shuffle the emojis
             emojis = emojis.OrderBy(x => Guid.NewGuid()).ToList();
 
-            // Create and add buttons to the grid
             memoryButtons = new List<Button>();
             MemoryGridLayout.Children.Clear();
 
-            // Add the header label back
             Label headerLabel = new Label
             {
                 Text = "Complete the memory game to pass",
@@ -289,7 +322,6 @@ namespace Dawidek
                 {
                     var button = new Button
                     {
-                        // Define styles inline rather than using resource dictionary
                         BackgroundColor = Colors.LightBlue,
                         TextColor = Colors.Transparent,
                         FontSize = 24,
@@ -298,25 +330,22 @@ namespace Dawidek
                         CommandParameter = row * 4 + col
                     };
                     button.Clicked += OnMemoryTileClicked;
-                    Grid.SetRow(button, row + 1); // +1 to account for the header
+                    Grid.SetRow(button, row + 1);
                     Grid.SetColumn(button, col);
                     MemoryGridLayout.Children.Add(button);
                     memoryButtons.Add(button);
                 }
             }
-            System.Diagnostics.Debug.WriteLine("StartMemoryGame Called");
         }
 
         private async void OnMemoryTileClicked(object sender, EventArgs e)
         {
             if (isProcessing) return;
             if (sender is not Button button) return;
-
-            if (button.TextColor == Colors.Black) return; // Already revealed
+            if (button.TextColor == Colors.Black) return;
 
             button.TextColor = Colors.Black;
 
-            // Get the index from the command parameter
             if (button.CommandParameter is not int index) return;
             if (index < 0 || index >= emojis.Count) return;
 
@@ -338,7 +367,7 @@ namespace Dawidek
                     secondFlippedTile = null;
                     isProcessing = false;
 
-                    if (matchesFound == 8) // 8 matches for 16 tiles
+                    if (matchesFound == 8)
                     {
                         currentQuestion++;
                         ShowPuzzle();
@@ -354,7 +383,103 @@ namespace Dawidek
                     isProcessing = false;
                 }
             }
-            System.Diagnostics.Debug.WriteLine($"OnMemoryTileClicked Called. matchesFound = {matchesFound}");
         }
+
+        #endregion
+
+        #region Traffic Light Puzzle
+
+        private void InitializeTrafficLightPuzzle()
+        {
+            // Reset the traffic light puzzle
+            foreach (var slot in lightSlots.Values)
+            {
+                slot.BackgroundColor = Colors.LightGray;
+            }
+
+            slotContents.Clear();
+
+            // Make the colored lights visible again
+            RedLight.IsVisible = true;
+            YellowLight.IsVisible = true;
+            GreenLight.IsVisible = true;
+        }
+
+        private void OnLightDragStarting(object sender, DragStartingEventArgs e)
+        {
+            if (sender is Frame light)
+            {
+                draggedLight = light;
+                e.Data.Properties.Add("color", light.BackgroundColor.ToString());
+            }
+        }
+
+        private void OnLightSlotDropCompleted(object sender, DropCompletedEventArgs e)
+        {
+            if (sender is Frame slot && draggedLight != null)
+            {
+                // If this slot already has a light, return it to visibility
+                if (slotContents.ContainsKey(slot))
+                {
+                    string currentColor = slotContents[slot];
+                    if (currentColor == "Red")
+                        RedLight.IsVisible = true;
+                    else if (currentColor == "Yellow")
+                        YellowLight.IsVisible = true;
+                    else if (currentColor == "Green")
+                        GreenLight.IsVisible = true;
+                }
+
+                // Set the slot to the color of the dragged light
+                slot.BackgroundColor = draggedLight.BackgroundColor;
+
+                // Hide the dragged light
+                draggedLight.IsVisible = false;
+
+                // Update the slot contents
+                string draggedColor = "";
+                if (draggedLight == RedLight)
+                    draggedColor = "Red";
+                else if (draggedLight == YellowLight)
+                    draggedColor = "Yellow";
+                else if (draggedLight == GreenLight)
+                    draggedColor = "Green";
+
+                slotContents[slot] = draggedColor;
+
+                // Reset the draggedLight
+                draggedLight = null;
+            }
+        }
+
+        private void CheckTrafficLightSolution(object sender, EventArgs e)
+        {
+            // Check if all slots have lights
+            if (slotContents.Count < 3)
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                    await DisplayAlert("Incomplete", "Place all three colors in the traffic light", "OK"));
+                return;
+            }
+
+            // Check if the order is correct (Red at top, Yellow in middle, Green at bottom)
+            bool isCorrect =
+                slotContents.ContainsKey(TopLightSlot) && slotContents[TopLightSlot] == "Red" &&
+                slotContents.ContainsKey(MiddleLightSlot) && slotContents[MiddleLightSlot] == "Yellow" &&
+                slotContents.ContainsKey(BottomLightSlot) && slotContents[BottomLightSlot] == "Green";
+
+            if (isCorrect)
+            {
+                currentQuestion++;
+                ShowPuzzle();
+            }
+            else
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                    await DisplayAlert("Incorrect", "The traffic light colors are not in the correct order", "Try Again"));
+            }
+        }
+
+        #endregion
     }
 }
