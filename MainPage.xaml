@@ -191,9 +191,7 @@
               Margin="20"
               HorizontalOptions="Center"
               VerticalOptions="Center"
-              BackgroundColor="White">
-            <!-- Memory game content will be added programmatically -->
-        </Grid>
+              BackgroundColor="White"/>
 
         <Border x:Name="TimerBorder"
                 IsVisible="False"

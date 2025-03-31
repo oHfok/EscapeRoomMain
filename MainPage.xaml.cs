@@ -13,24 +13,18 @@ namespace Dawidek
         private readonly System.Timers.Timer gameTimer;
         private bool gameEnded;
         private int currentQuestion;
-        private readonly string[] questions = { "Ile to 6 + 3?", "Jakiej litery brakuje: A, B, _, D?", "Znajdź hasło", "Ile jest planet w układzie słonecznym?", "traffic_light", "memory_game" };
-        private readonly string[] answers = { "9", "c", "", "8", "", "" };
+        private readonly string[] questions = { "Ile to 6 + 3?", "Jakiej litery brakuje: A, B, _, D?", "Znajdź hasło", "Ile jest planet w układzie słonecznym?", "memory_game" };
+        private readonly string[] answers = { "9", "c", "", "8", "" };
         private DateTime startTime;
         private string password = string.Empty;
         private double initialBarWidth;
 
-        // Memory game variables
         private List<Button> memoryButtons = new();
         private List<string> emojis = new();
         private Button? firstFlippedTile;
         private Button? secondFlippedTile;
         private bool isProcessing = false;
         private int matchesFound = 0;
-
-        // Traffic light puzzle variables
-        private Frame? draggedLight = null;
-        private Dictionary<string, Frame> lightSlots = new();
-        private Dictionary<Frame, string> slotContents = new();
 
         public MainPage()
         {
@@ -40,16 +34,6 @@ namespace Dawidek
             gameTimer = new System.Timers.Timer(1000);
             gameTimer.Elapsed += OnTimerElapsed;
             TimerBar.WidthRequest = 300;
-
-            // Initialize the traffic light slots
-            lightSlots = new Dictionary<string, Frame>
-            {
-                { "Top", TopLightSlot },
-                { "Middle", MiddleLightSlot },
-                { "Bottom", BottomLightSlot }
-            };
-
-            slotContents = new Dictionary<Frame, string>();
         }
 
         protected override void OnSizeAllocated(double width, double height)
@@ -71,27 +55,7 @@ namespace Dawidek
             FindPasswordLabel.IsVisible = false;
             PuzzleAnswer.IsVisible = false;
             MemoryGridLayout.IsVisible = false;
-            TrafficLightGrid.IsVisible = false;
             StartButton.IsVisible = true;
-
-            // Reset traffic light puzzle
-            if (lightSlots != null && lightSlots.Count > 0)
-            {
-                foreach (var slot in lightSlots.Values)
-                {
-                    slot.BackgroundColor = Colors.LightGray;
-                }
-            }
-
-            if (slotContents != null)
-            {
-                slotContents.Clear();
-            }
-
-            // Make the colored lights visible again
-            if (RedLight != null) RedLight.IsVisible = true;
-            if (YellowLight != null) YellowLight.IsVisible = true;
-            if (GreenLight != null) GreenLight.IsVisible = true;
         }
 
         private void StartGame(object sender, EventArgs e)
@@ -176,26 +140,18 @@ namespace Dawidek
                     return;
                 }
 
-                // Hide all puzzle layouts first
-                PuzzleLayout.IsVisible = false;
-                MemoryGridLayout.IsVisible = false;
-                TrafficLightGrid.IsVisible = false;
-
                 if (questions[currentQuestion] == "memory_game")
                 {
+                    PuzzleLayout.IsVisible = false;
                     MemoryGridLayout.IsVisible = true;
                     WarningEmojiButton.IsVisible = false;
                     FindPasswordLabel.IsVisible = false;
                     StartMemoryGame();
                 }
-                else if (questions[currentQuestion] == "traffic_light")
-                {
-                    TrafficLightGrid.IsVisible = true;
-                    InitializeTrafficLightPuzzle();
-                }
                 else
                 {
                     PuzzleLayout.IsVisible = true;
+                    MemoryGridLayout.IsVisible = false;
                     PuzzleQuestion.Text = questions[currentQuestion];
                     PuzzleAnswer.Text = string.Empty;
                     IncorrectAnswerLabel.IsVisible = false;
@@ -218,7 +174,7 @@ namespace Dawidek
 
         private void SubmitAnswer(object sender, EventArgs e)
         {
-            if (currentQuestion >= questions.Length || questions[currentQuestion] == "memory_game" || questions[currentQuestion] == "traffic_light")
+            if (currentQuestion >= questions.Length || questions[currentQuestion] == "memory_game")
             {
                 return;
             }
@@ -265,7 +221,6 @@ namespace Dawidek
                 TimerBar.IsVisible = false;
                 PuzzleLayout.IsVisible = false;
                 MemoryGridLayout.IsVisible = false;
-                TrafficLightGrid.IsVisible = false;
 
                 // Calculate time taken
                 double secondsTaken = Math.Round((DateTime.Now - startTime).TotalSeconds, 2);
@@ -285,8 +240,6 @@ namespace Dawidek
                 }
             });
         }
-
-        #region Memory Game
 
         private void StartMemoryGame()
         {
@@ -384,102 +337,5 @@ namespace Dawidek
                 }
             }
         }
-
-        #endregion
-
-        #region Traffic Light Puzzle
-
-        private void InitializeTrafficLightPuzzle()
-        {
-            // Reset the traffic light puzzle
-            foreach (var slot in lightSlots.Values)
-            {
-                slot.BackgroundColor = Colors.LightGray;
-            }
-
-            slotContents.Clear();
-
-            // Make the colored lights visible again
-            RedLight.IsVisible = true;
-            YellowLight.IsVisible = true;
-            GreenLight.IsVisible = true;
-        }
-
-        private void OnLightDragStarting(object sender, DragStartingEventArgs e)
-        {
-            if (sender is Frame light)
-            {
-                draggedLight = light;
-                e.Data.Properties.Add("color", light.BackgroundColor.ToString());
-            }
-        }
-
-        private void OnLightSlotDropCompleted(object sender, DropCompletedEventArgs e)
-        {
-            if (sender is Frame slot && draggedLight != null)
-            {
-                // If this slot already has a light, return it to visibility
-                if (slotContents.ContainsKey(slot))
-                {
-                    string currentColor = slotContents[slot];
-                    if (currentColor == "Red")
-                        RedLight.IsVisible = true;
-                    else if (currentColor == "Yellow")
-                        YellowLight.IsVisible = true;
-                    else if (currentColor == "Green")
-                        GreenLight.IsVisible = true;
-                }
-
-                // Set the slot to the color of the dragged light
-                slot.BackgroundColor = draggedLight.BackgroundColor;
-
-                // Hide the dragged light
-                draggedLight.IsVisible = false;
-
-                // Update the slot contents
-                string draggedColor = "";
-                if (draggedLight == RedLight)
-                    draggedColor = "Red";
-                else if (draggedLight == YellowLight)
-                    draggedColor = "Yellow";
-                else if (draggedLight == GreenLight)
-                    draggedColor = "Green";
-
-                slotContents[slot] = draggedColor;
-
-                // Reset the draggedLight
-                draggedLight = null;
-            }
-        }
-
-        private void CheckTrafficLightSolution(object sender, EventArgs e)
-        {
-            // Check if all slots have lights
-            if (slotContents.Count < 3)
-            {
-                MainThread.BeginInvokeOnMainThread(async () =>
-                    await DisplayAlert("Incomplete", "Place all three colors in the traffic light", "OK"));
-                return;
-            }
-
-            // Check if the order is correct (Red at top, Yellow in middle, Green at bottom)
-            bool isCorrect =
-                slotContents.ContainsKey(TopLightSlot) && slotContents[TopLightSlot] == "Red" &&
-                slotContents.ContainsKey(MiddleLightSlot) && slotContents[MiddleLightSlot] == "Yellow" &&
-                slotContents.ContainsKey(BottomLightSlot) && slotContents[BottomLightSlot] == "Green";
-
-            if (isCorrect)
-            {
-                currentQuestion++;
-                ShowPuzzle();
-            }
-            else
-            {
-                MainThread.BeginInvokeOnMainThread(async () =>
-                    await DisplayAlert("Incorrect", "The traffic light colors are not in the correct order", "Try Again"));
-            }
-        }
-
-        #endregion
     }
 }
