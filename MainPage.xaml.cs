@@ -9,6 +9,7 @@ namespace Dawidek
 {
     public partial class MainPage : ContentPage
     {
+    // siema jestem agnieszka
         private int timeLeft = 60;
         private readonly System.Timers.Timer gameTimer;
         private bool gameEnded;
