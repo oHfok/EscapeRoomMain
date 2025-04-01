@@ -9,13 +9,16 @@ namespace Dawidek
 {
     public partial class MainPage : ContentPage
     {
-    // siema jestem agnieszka
+        // siema jestem agnieszka
         private int timeLeft = 60;
         private readonly System.Timers.Timer gameTimer;
         private bool gameEnded;
         private int currentQuestion;
-        private readonly string[] questions = { "Ile to 6 + 3?", "Jakiej litery brakuje: A, B, _, D?", "Znajdź hasło", "Ile jest planet w układzie słonecznym?", "memory_game" };
-        private readonly string[] answers = { "9", "c", "", "8", "" };
+        private readonly string[] questions = { "Ojciec i syn mają razem 36 lat. Wiedząc, że ojciec jest o 30 lat starszy od syna, powiedz ile lat ma syn. ",
+ "Znajdź hasło",
+ "Jaka liczba, podzielona przez siebie samą, będzie wynikiem tego dzielenia?",
+ "memory_game" };
+        private readonly string[] answers = { "3", "", "1", "" };
         private DateTime startTime;
         private string password = string.Empty;
         private double initialBarWidth;
@@ -61,11 +64,10 @@ namespace Dawidek
 
         private void StartGame(object sender, EventArgs e)
         {
-            // Explicitly hide success and game over layouts first
             SuccessLayout.IsVisible = false;
             GameOverLayout.IsVisible = false;
-
             StartButton.IsVisible = false;
+
             startTime = DateTime.Now;
             timeLeft = 60;
             currentQuestion = 0;
@@ -75,15 +77,14 @@ namespace Dawidek
             TimerBar.WidthRequest = initialBarWidth;
             TimerBar.BackgroundColor = Colors.Green;
 
-            TimerBorder.IsVisible = true;
-            TimerBar.IsVisible = true;
-            TimerLabel.IsVisible = true;
-            TimerLabel.TextColor = Colors.White; // Reset text color
+            TimerBorder.IsVisible = TimerBar.IsVisible = TimerLabel.IsVisible = true;
+            TimerLabel.TextColor = Colors.White;
             TimerBar.Margin = new Thickness(0, 50, 0, 0);
 
             ShowPuzzle();
             gameTimer.Start();
         }
+
 
         private void UpdateTimerBar()
         {
@@ -110,7 +111,7 @@ namespace Dawidek
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 timeLeft--;
-                TimerLabel.Text = $"Time Left: {timeLeft}";
+                TimerLabel.Text = $"Pozostały czas: {timeLeft}";
 
                 if (timeLeft <= 10)
                     TimerLabel.TextColor = Colors.Red;
@@ -129,7 +130,7 @@ namespace Dawidek
         }
 
         private void WarningEmojiClicked(object sender, EventArgs e) =>
-            MainThread.BeginInvokeOnMainThread(async () => await DisplayAlert("Password", password, "OK"));
+        MainThread.BeginInvokeOnMainThread(async () => await DisplayAlert("Hasło", password, "OK"));
 
         private void ShowPuzzle()
         {
@@ -156,10 +157,10 @@ namespace Dawidek
                     PuzzleQuestion.Text = questions[currentQuestion];
                     PuzzleAnswer.Text = string.Empty;
                     IncorrectAnswerLabel.IsVisible = false;
-                    WarningEmojiButton.IsVisible = currentQuestion == 2;
-                    FindPasswordLabel.IsVisible = currentQuestion == 2;
+                    WarningEmojiButton.IsVisible = currentQuestion == 1;
+                    FindPasswordLabel.IsVisible = currentQuestion == 1;
                     PuzzleAnswer.IsVisible = true;
-                    if (currentQuestion == 2) GenerateEmojiPassword();
+                    if (currentQuestion == 1) GenerateEmojiPassword();
                 }
             });
         }
@@ -170,7 +171,7 @@ namespace Dawidek
             Random rand = new Random();
             string letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
             for (int i = 0; i < 4; i++) password += letters[rand.Next(letters.Length)];
-            answers[2] = password;
+            answers[1] = password;
         }
 
         private void SubmitAnswer(object sender, EventArgs e)
@@ -181,9 +182,9 @@ namespace Dawidek
             }
 
             string answer = PuzzleAnswer.Text?.Trim() ?? "";
-            bool isCorrect = currentQuestion == 2
-                ? answer.ToUpper() == answers[2].ToUpper()
-                : answer.ToUpper() == answers[currentQuestion].ToUpper();
+            bool isCorrect = currentQuestion == 1
+            ? answer.ToUpper() == answers[1].ToUpper()
+            : answer.ToUpper() == answers[currentQuestion].ToUpper();
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
@@ -213,8 +214,8 @@ namespace Dawidek
             gameEnded = true;
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                // Hide all game elements first
-                WarningEmojiButton.IsVisible = false;
+                // Hide all game elements first
+                WarningEmojiButton.IsVisible = false;
                 FindPasswordLabel.IsVisible = false;
                 PuzzleAnswer.IsVisible = false;
                 TimerLabel.IsVisible = false;
@@ -223,19 +224,19 @@ namespace Dawidek
                 PuzzleLayout.IsVisible = false;
                 MemoryGridLayout.IsVisible = false;
 
-                // Calculate time taken
-                double secondsTaken = Math.Round((DateTime.Now - startTime).TotalSeconds, 2);
+                // Calculate time taken
+                double secondsTaken = Math.Round((DateTime.Now - startTime).TotalSeconds, 2);
 
-                // Show the appropriate end screen
-                if (isTimeout)
+                // Show the appropriate end screen
+                if (isTimeout)
                 {
-                    TimeTakenLabel.Text = $"Time Taken: {secondsTaken} seconds";
+                    TimeTakenLabel.Text = $"Ukończono w: {secondsTaken} sekund";
                     GameOverLayout.IsVisible = true;
                     SuccessLayout.IsVisible = false;
                 }
                 else
                 {
-                    TimeTakenSuccessLabel.Text = $"Time Taken: {secondsTaken} seconds";
+                    TimeTakenSuccessLabel.Text = $"Ukończono w: {secondsTaken} sekund";
                     SuccessLayout.IsVisible = true;
                     GameOverLayout.IsVisible = false;
                 }
@@ -250,8 +251,8 @@ namespace Dawidek
             isProcessing = false;
 
             emojis = new List<string> {
-                "😊", "😊", "😂", "😂", "😍", "😍", "😎", "😎",
-                "🤔", "🤔", "🔥", "🔥", "🎉", "🎉", "🌟", "🌟" };
+ "😊", "😊", "😂", "😂", "😍", "😍", "😎", "😎",
+ "🤔", "🤔", "🔥", "🔥", "🎉", "🎉", "🌟", "🌟" };
 
             emojis = emojis.OrderBy(x => Guid.NewGuid()).ToList();
 
@@ -260,7 +261,7 @@ namespace Dawidek
 
             Label headerLabel = new Label
             {
-                Text = "Complete the memory game to pass",
+                Text = "Ukończ grę pamięciową, aby przejść dalej",
                 HorizontalOptions = LayoutOptions.Center,
                 FontAttributes = FontAttributes.Bold,
                 TextColor = Colors.Black,
